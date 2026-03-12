@@ -1,0 +1,55 @@
+{% extends 'inventory/base.html' %}
+
+{% block content %}
+
+<div class="mb-3">
+
+<a href="{% url 'inventory:export_excel' %}" class="btn btn-success">
+Download Excel
+</a>
+
+<a href="{% url 'inventory:export_csv' %}" class="btn btn-secondary">
+Download CSV
+</a>
+
+</div>
+
+<h3>Inventory Reports</h3>
+
+<h5 class="mt-4">Computers per Office</h5>
+
+<table class="table table-bordered">
+<tr>
+<th>Office</th>
+<th>Total Computers</th>
+</tr>
+
+{% for row in office_report %}
+<tr>
+<td>{{ row.office_or_hospital }}</td>
+<td>{{ row.total }}</td>
+</tr>
+{% endfor %}
+
+</table>
+
+
+<h5 class="mt-4">Computers per Status</h5>
+
+<table class="table table-bordered">
+
+<tr>
+<th>Status</th>
+<th>Total</th>
+</tr>
+
+{% for row in status_report %}
+<tr>
+<td>{{ row.status }}</td>
+<td>{{ row.total }}</td>
+</tr>
+{% endfor %}
+
+</table>
+
+{% endblock %}

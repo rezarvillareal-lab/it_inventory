@@ -1,0 +1,53 @@
+{% extends 'inventory/base.html' %}
+{% block content %}
+
+<!-- <h4 class="text-center">REPUBLIC OF THE PHILIPPINES</h4>
+<h5 class="text-center">PROVINCIAL GOVERNMENT</h5>
+<h5 class="text-center">I.T. EQUIPMENT INVENTORY</h5> -->
+
+<form method="post">
+    {% csrf_token %}
+
+    <div class="card p-4 mb-4">
+        {{ form.as_p }}
+    </div>
+
+    <h5 class="text-center mb-3">I.T. EQUIPMENT</h5>
+
+    {{ formset.management_form }}
+
+    <table class="table table-bordered text-center">
+        <thead class="table-dark">
+            <tr>
+                <th rowspan="2">I.T. EQUIPMENT</th>
+                <th colspan="2">ORIGINAL</th>
+                <th colspan="2">REPLACEMENT</th>
+                <th rowspan="2">REMARKS</th>
+            </tr>
+            <tr>
+                <th>Model/Type</th>
+                <th>Serial No.</th>
+                <th>Model/Type</th>
+                <th>Serial No.</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in formset %}
+            <tr>
+                <td>{{ f.equipment_name }}</td>
+                <td>{{ f.original_model }}</td>
+                <td>{{ f.original_serial }}</td>
+                <td>{{ f.replacement_model }}</td>
+                <td>{{ f.replacement_serial }}</td>
+                <td>{{ f.remarks }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <button type="submit" class="btn btn-success mt-3">
+        Save
+    </button>
+</form>
+
+{% endblock %}

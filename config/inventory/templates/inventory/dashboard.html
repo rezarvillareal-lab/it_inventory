@@ -1,0 +1,74 @@
+{% extends 'inventory/base.html' %}
+
+{% block content %}
+
+<h2>IT Inventory Dashboard</h2>
+
+<div class="row">
+
+<div class="col-md-4">
+<div class="card text-white bg-primary mb-3">
+<div class="card-body">
+<h5>Total Computers</h5>
+<h2>{{ total_computers }}</h2>
+</div>
+</div>
+</div>
+
+<div class="col-md-4">
+<div class="card text-white bg-warning mb-3">
+<div class="card-body">
+<h5>Replaced Components</h5>
+<h2>{{ replacements }}</h2>
+</div>
+</div>
+</div>
+
+</div>
+
+<h4>Computers per Office</h4>
+
+<canvas id="officeChart"></canvas>
+
+{{ office_labels|json_script:"office-labels" }}
+{{ office_counts|json_script:"office-counts" }}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<script>
+
+const labelsEl = document.getElementById('office-labels');
+const countsEl = document.getElementById('office-counts');
+const canvas = document.getElementById('officeChart');
+
+if (!labelsEl || !countsEl || !canvas || typeof Chart === 'undefined') {
+    console.warn('Dashboard chart not initialized (missing data, canvas, or Chart.js).');
+} else {
+    const officeLabels = JSON.parse(labelsEl.textContent);
+    const officeCounts = JSON.parse(countsEl.textContent);
+    const ctx = canvas.getContext('2d');
+
+    new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: officeLabels,
+        datasets: [{
+            label: 'Computers',
+            data: officeCounts,
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+    });
+}
+
+</script>
+
+{% endblock %}

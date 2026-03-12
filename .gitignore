@@ -1,0 +1,26 @@
+# Python / Django
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtualenv in repo root (this project layout)
+Include/
+Lib/
+Scripts/
+pyvenv.cfg
+
+# Env files / secrets
+.env
+.env.*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

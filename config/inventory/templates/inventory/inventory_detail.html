@@ -1,0 +1,101 @@
+{% extends 'inventory/base.html' %}
+
+{% block content %}
+
+<h2>Inventory Detail</h2>
+
+<table class="table table-bordered">
+<tr>
+<th>Control Number</th>
+<td>{{ inventory.control_number }}</td>
+</tr>
+
+<tr>
+<th>Office / Hospital</th>
+<td>{{ inventory.office_or_hospital }}</td>
+</tr>
+
+<tr>
+<th>User Name</th>
+<td>{{ inventory.user_name }}</td>
+</tr>
+
+<tr>
+<th>Computer Name</th>
+<td>{{ inventory.computer_name }}</td>
+</tr>
+
+<tr>
+<th>Assigned IP</th>
+<td>{{ inventory.assigned_ip }}</td>
+</tr>
+
+<tr>
+<th>Received By</th>
+<td>{{ inventory.received_by }}</td>
+</tr>
+
+<tr>
+<th>Position</th>
+<td>{{ inventory.position }}</td>
+</tr>
+
+<tr>
+<th>Date Received</th>
+<td>{{ inventory.date_received }}</td>
+</tr>
+
+<tr>
+<th>Created By</th>
+<td>{{ inventory.created_by }}</td>
+</tr>
+
+<tr>
+<th>Created At</th>
+<td>{{ inventory.created_at }}</td>
+</tr>
+
+<tr>
+<th>Status</th>
+<td>{{ inventory.status }}</td>
+</tr>
+
+</table>
+
+<h3>I.T. Equipment </h3>
+
+<table class="table table-bordered text-center">
+        <thead class="table-dark">
+            <tr>
+                <th rowspan="2">I.T. EQUIPMENT</th>
+                <th colspan="2">ORIGINAL</th>
+                <th colspan="2">REPLACEMENT</th>
+                <th rowspan="2">REMARKS</th>
+            </tr>
+            <tr>
+                <th>Model/Type</th>
+                <th>Serial No.</th>
+                <th>Model/Type</th>
+                <th>Serial No.</th>
+            </tr>
+        </thead>
+
+{% for c in components %}
+<tr>
+<td>{{ c.component_name }}</td>
+<td>{{ c.original_model }}</td>
+<td>{{ c.original_serial }}</td>
+<td>{{ c.replacement_model }}</td>
+<td>{{ c.replacement_serial }}</td>
+<td>{{ c.remarks }}</td>
+</tr>
+
+{% endfor %}
+
+</table>
+
+<a href="{% url 'inventory:inventory_list' %}" class="btn btn-secondary">
+Back
+</a>
+
+{% endblock %}
