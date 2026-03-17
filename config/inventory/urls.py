@@ -9,6 +9,10 @@ urlpatterns = [
 
     path("inventory/", views.inventory_list, name="inventory_list"),
 
+    path("inventory/export/csv/", views.export_inventory_search_csv, name="inventory_export_csv"),
+
+    path("inventory/export/excel/", views.export_inventory_search_excel, name="inventory_export_excel"),
+
     path("add/", views.inventory_create, name="inventory_add"),
 
     path("<int:pk>/", views.inventory_detail, name="inventory_detail"),

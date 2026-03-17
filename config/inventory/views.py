@@ -1,40 +1,42 @@
-from django.shortcuts import render, redirect, get_object_or_404
-from django.contrib.auth.decorators import login_required, permission_required
-from .models import Inventory
-from .forms import InventoryForm, ComponentFormSet
-from django.forms import formset_factory
-from .forms import InventoryForm
-from django import forms
-from .models import Inventory, EquipmentComponent
-from django.forms import formset_factory
-from django.db.models import Count
-from django.db.models import Q
 import csv
+
+from django import forms
+from django.contrib.auth.decorators import login_required, permission_required
+from django.db.models import Count, Q
+from django.forms import formset_factory
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from openpyxl import Workbook
-from .models import Inventory
 
-def inventory_list(request):
+from .forms import InventoryForm
+from .models import EquipmentComponent, Inventory
 
-    query = request.GET.get("q")
+
+def _inventory_search_queryset(request):
+    query = (request.GET.get("q") or "").strip()
 
     inventories = Inventory.objects.all().order_by("-created_at")
 
     if query:
         inventories = inventories.filter(
-            Q(control_number__icontains=query) |
-            Q(user_name__icontains=query) |
-            Q(computer_name__icontains=query) |
-            Q(assigned_ip__icontains=query) |
-            Q(office_or_hospital__icontains=query)
+            Q(control_number__icontains=query)
+            | Q(user_name__icontains=query)
+            | Q(computer_name__icontains=query)
+            | Q(assigned_ip__icontains=query)
+            | Q(office_or_hospital__icontains=query)
         )
 
-    context = {
-        "inventories": inventories,
-        "query": query
-    }
+    return inventories, query
 
-    return render(request, "inventory/inventory_list.html", context)
+
+def inventory_list(request):
+    inventories, query = _inventory_search_queryset(request)
+
+    return render(
+        request,
+        "inventory/inventory_list.html",
+        {"inventories": inventories, "query": query},
+    )
 
 
 def reports(request):
@@ -140,10 +142,6 @@ class EquipmentStaticForm(forms.Form):
     remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 1}))
 
 
-from django.db.models import Count
-from .models import Inventory
-
-
 def dashboard(request):
 
     total_computers = Inventory.objects.count()
@@ -187,12 +185,78 @@ def dashboard(request):
     return render(request, "inventory/dashboard.html", context)
 
 
-# 🔓 PUBLIC VIEW
-def inventory_list(request):
-    inventories = Inventory.objects.all().order_by('-created_at')
-    return render(request, 'inventory/inventory_list.html', {
-        'inventories': inventories
-    })
+# Export filtered inventory
+def export_inventory_search_csv(request):
+    inventories, _query = _inventory_search_queryset(request)
+
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = 'attachment; filename="inventory_search.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(
+        [
+            "Control Number",
+            "User Name",
+            "Computer Name",
+            "Assigned IP",
+            "Office",
+            "Status",
+        ]
+    )
+
+    for item in inventories:
+        writer.writerow(
+            [
+                item.control_number,
+                item.user_name,
+                item.computer_name,
+                item.assigned_ip,
+                item.office_or_hospital,
+                item.status,
+            ]
+        )
+
+    return response
+
+
+def export_inventory_search_excel(request):
+    inventories, _query = _inventory_search_queryset(request)
+
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Inventory Search"
+
+    sheet.append(
+        [
+            "Control Number",
+            "User Name",
+            "Computer Name",
+            "Assigned IP",
+            "Office",
+            "Status",
+        ]
+    )
+
+    for item in inventories:
+        sheet.append(
+            [
+                item.control_number,
+                item.user_name,
+                item.computer_name,
+                item.assigned_ip,
+                item.office_or_hospital,
+                item.status,
+            ]
+        )
+
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="inventory_search.xlsx"'
+
+    workbook.save(response)
+
+    return response
 
 
 # 🔓 PUBLIC VIEW
