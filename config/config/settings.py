@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -103,6 +104,17 @@ DATABASES = {
         'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
+
+USE_SQLITE = os.environ.get("DJANGO_USE_SQLITE", "").lower() in {"1", "true", "yes"}
+RUNNING_TESTS = any(arg in sys.argv for arg in {"test", "pytest"})
+
+if USE_SQLITE or RUNNING_TESTS:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": ":memory:" if RUNNING_TESTS else (BASE_DIR / "db.sqlite3"),
+        }
+    }
 
 
 # Password validation

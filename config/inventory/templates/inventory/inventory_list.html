@@ -37,6 +37,7 @@ Search
             <th>User</th>
             <th>Office</th>
             <th>Date</th>
+            <th>Status</th>
             <th>Actions</th>
         </tr>
     </thead>
@@ -47,6 +48,7 @@ Search
             <td>{{ item.user_name }}</td>
             <td>{{ item.office_or_hospital }}</td>
             <td>{{ item.date_received }}</td>
+            <td>{{ item.status }}</td>
             <td>
                 <a href="{% url 'inventory:inventory_detail' item.pk %}" class="btn btn-info btn-sm">View</a>
                 <a href="{% url 'inventory:inventory_edit' item.pk %}" class="btn btn-warning btn-sm">Edit</a>

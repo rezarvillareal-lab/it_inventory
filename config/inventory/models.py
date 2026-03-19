@@ -17,6 +17,7 @@ class Inventory(models.Model):
         INACTIVE = "Inactive", "Inactive"
         MAINTENANCE = "Maintenance", "Maintenance"
         CONDEMNED = "Condemned", "Condemned"
+        DISPOSED = "Disposed", "Disposed"
 
     status = models.CharField(
         max_length=20,

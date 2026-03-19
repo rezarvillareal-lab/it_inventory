@@ -4,69 +4,163 @@
 
 <h2>IT Inventory Dashboard</h2>
 
-<div class="row">
-
-<div class="col-md-4">
-<div class="card text-white bg-primary mb-3">
-<div class="card-body">
-<h5>Total Computers</h5>
-<h2>{{ total_computers }}</h2>
-</div>
-</div>
-</div>
-
-<div class="col-md-4">
-<div class="card text-white bg-warning mb-3">
-<div class="card-body">
-<h5>Replaced Components</h5>
-<h2>{{ replacements }}</h2>
-</div>
-</div>
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card text-white bg-primary">
+            <div class="card-body">
+                <h5 class="card-title mb-1">Total Computers</h5>
+                <div class="display-6 fw-semibold">{{ total_computers }}</div>
+            </div>
+        </div>
+    </div>
 </div>
 
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Computers per Office</h5>
+                <canvas id="officeChart" height="260"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">Computers by Status</h5>
+                <canvas id="statusChart" height="260"></canvas>
+            </div>
+        </div>
+    </div>
 </div>
-
-<h4>Computers per Office</h4>
-
-<canvas id="officeChart"></canvas>
 
 {{ office_labels|json_script:"office-labels" }}
 {{ office_counts|json_script:"office-counts" }}
+{{ status_labels|json_script:"status-labels" }}
+{{ status_counts|json_script:"status-counts" }}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
 <script>
 
-const labelsEl = document.getElementById('office-labels');
-const countsEl = document.getElementById('office-counts');
-const canvas = document.getElementById('officeChart');
-
-if (!labelsEl || !countsEl || !canvas || typeof Chart === 'undefined') {
-    console.warn('Dashboard chart not initialized (missing data, canvas, or Chart.js).');
-} else {
-    const officeLabels = JSON.parse(labelsEl.textContent);
-    const officeCounts = JSON.parse(countsEl.textContent);
-    const ctx = canvas.getContext('2d');
-
-    new Chart(ctx, {
-    type: 'bar',
-    data: {
-        labels: officeLabels,
-        datasets: [{
-            label: 'Computers',
-            data: officeCounts,
-            borderWidth: 1
-        }]
-    },
-    options: {
-        responsive: true,
-        scales: {
-            y: {
-                beginAtZero: true
-            }
-        }
+const getJsonScript = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    try {
+        return JSON.parse(el.textContent);
+    } catch (err) {
+        console.warn(`Invalid JSON in #${id}`, err);
+        return null;
     }
-    });
+};
+
+const officeLabels = getJsonScript('office-labels');
+const officeCounts = getJsonScript('office-counts');
+const statusLabels = getJsonScript('status-labels');
+const statusCounts = getJsonScript('status-counts');
+
+const officeCanvas = document.getElementById('officeChart');
+const statusCanvas = document.getElementById('statusChart');
+
+if (typeof Chart === 'undefined') {
+    console.warn('Dashboard charts not initialized (Chart.js missing).');
+} else {
+    if (officeCanvas && Array.isArray(officeLabels) && Array.isArray(officeCounts)) {
+        new Chart(officeCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: officeLabels,
+                datasets: [{
+                    label: 'Computers',
+                    data: officeCounts,
+                    backgroundColor: 'rgba(13, 110, 253, 0.75)',
+                    borderColor: 'rgba(13, 110, 253, 1)',
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    maxBarThickness: 42
+                }]
+            },
+            options: {
+                responsive: true,
+                indexAxis: officeLabels.length > 8 ? 'y' : 'x',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const label = context.label ?? '';
+                                const value = context.parsed ?? 0;
+                                return `${label}: ${value}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { display: false },
+                        ticks: { precision: 0 }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.06)' },
+                        ticks: { precision: 0 }
+                    }
+                }
+            }
+        });
+    } else {
+        console.warn('Office chart not initialized (missing data or canvas).');
+    }
+
+    if (statusCanvas && Array.isArray(statusLabels) && Array.isArray(statusCounts)) {
+        const statusColorMap = {
+            Active: 'hsl(142 70% 45%)',
+            Inactive: 'hsl(220 10% 60%)',
+            Maintenance: 'hsl(45 90% 55%)',
+            Condemned: 'hsl(0 75% 55%)',
+            Disposed: 'hsl(210 25% 45%)'
+        };
+
+        const statusColors = statusLabels.map((label, i) => {
+            const mapped = statusColorMap[label];
+            if (mapped) return mapped;
+            const hue = Math.round((i * 360) / Math.max(statusLabels.length, 1));
+            return `hsl(${hue} 55% 60%)`;
+        });
+
+        new Chart(statusCanvas.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: statusLabels,
+                datasets: [{
+                    label: 'Computers',
+                    data: statusCounts,
+                    backgroundColor: statusColors,
+                    borderColor: '#ffffff',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'bottom' },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const label = context.label ?? '';
+                                const value = context.parsed ?? 0;
+                                return `${label}: ${value}`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    } else {
+        console.warn('Status chart not initialized (missing data or canvas).');
+    }
 }
 
 </script>

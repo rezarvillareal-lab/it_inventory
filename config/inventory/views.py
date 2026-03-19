@@ -6,8 +6,11 @@ from django.db.models import Count, Q
 from django.forms import formset_factory
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
-from openpyxl import Workbook
 
+try:
+    from openpyxl import Workbook
+except ImportError:  # pragma: no cover
+    Workbook = None
 from .forms import InventoryForm
 from .models import EquipmentComponent, Inventory
 
@@ -24,6 +27,7 @@ def _inventory_search_queryset(request):
             | Q(computer_name__icontains=query)
             | Q(assigned_ip__icontains=query)
             | Q(office_or_hospital__icontains=query)
+            | Q(status__icontains=query)
         )
 
     return inventories, query
@@ -94,6 +98,13 @@ def export_inventory_csv(request):
 
 def export_inventory_excel(request):
 
+    if Workbook is None:
+        return HttpResponse(
+            "Excel export requires openpyxl. Install openpyxl to enable this feature.",
+            status=500,
+            content_type="text/plain",
+        )
+
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = "Inventory Report"
@@ -123,7 +134,7 @@ def export_inventory_excel(request):
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     )
 
-    response['Content-Disposition'] = 'attachment; filename=inventory_report.xlsx'
+    response['Content-Disposition'] = 'attachment; filename="inventory_report.xlsx"'
 
     workbook.save(response)
 
@@ -133,8 +144,8 @@ def export_inventory_excel(request):
 # STATIC EQUIPMENT FORM (no dropdown)
 class EquipmentStaticForm(forms.Form):
     equipment_name = forms.CharField(
-    widget=forms.TextInput(attrs={'readonly': 'readonly'})
-)
+        widget=forms.TextInput(attrs={"readonly": "readonly"})
+    )
     original_model = forms.CharField(required=False)
     original_serial = forms.CharField(required=False)
     replacement_model = forms.CharField(required=False)
@@ -146,14 +157,16 @@ def dashboard(request):
 
     total_computers = Inventory.objects.count()
 
-    active_count = Inventory.objects.filter(status="Active").count()
-    maintenance_count = Inventory.objects.filter(status="Maintenance").count()
-    condemned_count = Inventory.objects.filter(status="Condemned").count()
+    active_count = Inventory.objects.filter(status=Inventory.Status.ACTIVE).count()
+    maintenance_count = Inventory.objects.filter(status=Inventory.Status.MAINTENANCE).count()
+    condemned_count = Inventory.objects.filter(status=Inventory.Status.CONDEMNED).count()
+    disposed_count = Inventory.objects.filter(status=Inventory.Status.DISPOSED).count()
 
     offices = (
         Inventory.objects
         .values("office_or_hospital")
         .annotate(total=Count("id"))
+        .order_by("office_or_hospital")
     )
 
     office_labels = [o["office_or_hospital"] for o in offices]
@@ -163,6 +176,7 @@ def dashboard(request):
         Inventory.objects
         .values("status")
         .annotate(total=Count("id"))
+        .order_by("status")
     )
 
     status_labels = [s["status"] for s in statuses]
@@ -175,6 +189,7 @@ def dashboard(request):
         "active_count": active_count,
         "maintenance_count": maintenance_count,
         "condemned_count": condemned_count,
+        "disposed_count": disposed_count,
         "office_labels": office_labels,
         "office_counts": office_counts,
         "status_labels": status_labels,
@@ -221,6 +236,13 @@ def export_inventory_search_csv(request):
 
 def export_inventory_search_excel(request):
     inventories, _query = _inventory_search_queryset(request)
+
+    if Workbook is None:
+        return HttpResponse(
+            "Excel export requires openpyxl. Install openpyxl to enable this feature.",
+            status=500,
+            content_type="text/plain",
+        )
 
     workbook = Workbook()
     sheet = workbook.active
