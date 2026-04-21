@@ -1,4 +1,5 @@
 import csv
+from typing import Iterable, Iterator, Optional, Tuple
 
 from django import forms
 from django.contrib.auth.decorators import login_required, permission_required
@@ -18,7 +19,7 @@ from .models import EquipmentComponent, Inventory
 def _inventory_search_queryset(request):
     query = (request.GET.get("q") or "").strip()
 
-    inventories = Inventory.objects.all().order_by("-created_at")
+    inventories = Inventory.objects.all().prefetch_related("components").order_by("-created_at")
 
     if query:
         inventories = inventories.filter(
@@ -31,6 +32,19 @@ def _inventory_search_queryset(request):
         )
 
     return inventories, query
+
+
+def _iter_inventory_component_rows(
+    inventories: Iterable[Inventory],
+) -> Iterator[Tuple[Inventory, Optional[EquipmentComponent]]]:
+    for inventory in inventories:
+        components = list(inventory.components.all().order_by("component_name", "id"))
+        if not components:
+            yield inventory, None
+            continue
+
+        for component in components:
+            yield inventory, component
 
 
 def inventory_list(request):
@@ -60,7 +74,7 @@ def reports(request):
 
     context = {
         "office_report": office_report,
-        "status_report": status_report
+        "status_report": status_report,
     }
 
     return render(request, "inventory/reports.html", context)
@@ -78,19 +92,31 @@ def export_inventory_csv(request):
         'Computer Name',
         'Assigned IP',
         'Office',
-        'Status'
+        'Status',
+        "Component",
+        "Original Model",
+        "Original Serial",
+        "Replacement Model",
+        "Replacement Serial",
+        "Remarks",
     ])
 
-    inventories = Inventory.objects.all()
+    inventories = Inventory.objects.all().prefetch_related("components").order_by("-created_at")
 
-    for item in inventories:
+    for item, component in _iter_inventory_component_rows(inventories):
         writer.writerow([
             item.control_number,
             item.user_name,
             item.computer_name,
             item.assigned_ip,
             item.office_or_hospital,
-            item.status
+            item.status,
+            component.component_name if component else "",
+            component.original_model if component else "",
+            component.original_serial if component else "",
+            component.replacement_model if component else "",
+            component.replacement_serial if component else "",
+            component.remarks if component else "",
         ])
 
     return response
@@ -115,19 +141,31 @@ def export_inventory_excel(request):
         "Computer Name",
         "Assigned IP",
         "Office",
-        "Status"
+        "Status",
+        "Component",
+        "Original Model",
+        "Original Serial",
+        "Replacement Model",
+        "Replacement Serial",
+        "Remarks",
     ])
 
-    inventories = Inventory.objects.all()
+    inventories = Inventory.objects.all().prefetch_related("components").order_by("-created_at")
 
-    for item in inventories:
+    for item, component in _iter_inventory_component_rows(inventories):
         sheet.append([
             item.control_number,
             item.user_name,
             item.computer_name,
             item.assigned_ip,
             item.office_or_hospital,
-            item.status
+            item.status,
+            component.component_name if component else "",
+            component.original_model if component else "",
+            component.original_serial if component else "",
+            component.replacement_model if component else "",
+            component.replacement_serial if component else "",
+            component.remarks if component else "",
         ])
 
     response = HttpResponse(
@@ -216,10 +254,16 @@ def export_inventory_search_csv(request):
             "Assigned IP",
             "Office",
             "Status",
+            "Component",
+            "Original Model",
+            "Original Serial",
+            "Replacement Model",
+            "Replacement Serial",
+            "Remarks",
         ]
     )
 
-    for item in inventories:
+    for item, component in _iter_inventory_component_rows(inventories):
         writer.writerow(
             [
                 item.control_number,
@@ -228,6 +272,12 @@ def export_inventory_search_csv(request):
                 item.assigned_ip,
                 item.office_or_hospital,
                 item.status,
+                component.component_name if component else "",
+                component.original_model if component else "",
+                component.original_serial if component else "",
+                component.replacement_model if component else "",
+                component.replacement_serial if component else "",
+                component.remarks if component else "",
             ]
         )
 
@@ -256,10 +306,16 @@ def export_inventory_search_excel(request):
             "Assigned IP",
             "Office",
             "Status",
+            "Component",
+            "Original Model",
+            "Original Serial",
+            "Replacement Model",
+            "Replacement Serial",
+            "Remarks",
         ]
     )
 
-    for item in inventories:
+    for item, component in _iter_inventory_component_rows(inventories):
         sheet.append(
             [
                 item.control_number,
@@ -268,6 +324,12 @@ def export_inventory_search_excel(request):
                 item.assigned_ip,
                 item.office_or_hospital,
                 item.status,
+                component.component_name if component else "",
+                component.original_model if component else "",
+                component.original_serial if component else "",
+                component.replacement_model if component else "",
+                component.replacement_serial if component else "",
+                component.remarks if component else "",
             ]
         )
 
