@@ -2,10 +2,19 @@ import datetime
 import io
 import csv
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import EquipmentComponent, Inventory
+from .models import EquipmentComponent, Inventory, UserProfile
+
+
+class RootViewTests(TestCase):
+    def test_anonymous_user_is_redirected_to_login_from_home(self):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 302)
+        self.assertRedirects(response, reverse("login"))
 
 
 class DashboardViewTests(TestCase):
@@ -26,6 +35,9 @@ class DashboardViewTests(TestCase):
         return Inventory.objects.create(**defaults)
 
     def test_dashboard_renders_both_charts_and_context(self):
+        user = get_user_model().objects.create_superuser(username="admin", password="password", email="admin@example.com")
+        self.client.force_login(user)
+
         self._create_inventory(control_number="CN-1", office_or_hospital="Office A", status=Inventory.Status.ACTIVE)
         self._create_inventory(control_number="CN-2", office_or_hospital="Office A", status=Inventory.Status.ACTIVE)
         self._create_inventory(control_number="CN-3", office_or_hospital="Office B", status=Inventory.Status.MAINTENANCE)
@@ -58,6 +70,23 @@ class DashboardViewTests(TestCase):
         self.assertEqual(status_totals.get(Inventory.Status.MAINTENANCE), 1)
         self.assertEqual(status_totals.get(Inventory.Status.CONDEMNED), 1)
         self.assertEqual(status_totals.get(Inventory.Status.DISPOSED), 1)
+
+    def test_dashboard_shows_only_items_for_the_user_office_scope(self):
+        user = get_user_model().objects.create_user(username="office_a_user", password="password")
+        UserProfile.objects.create(user=user, office_or_hospital="Office A")
+        self.client.force_login(user)
+
+        self._create_inventory(control_number="CN-1", office_or_hospital="Office A", status=Inventory.Status.ACTIVE)
+        self._create_inventory(control_number="CN-2", office_or_hospital="Office B", status=Inventory.Status.MAINTENANCE)
+
+        response = self.client.get(reverse("inventory:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total_computers"], 1)
+        self.assertEqual(response.context["office_labels"], ["Office A"])
+        self.assertEqual(response.context["office_counts"], [1])
+        self.assertEqual(response.context["status_labels"], [Inventory.Status.ACTIVE])
+        self.assertEqual(response.context["status_counts"], [1])
 
 
 class ExportInventorySearchTests(TestCase):
@@ -194,6 +223,109 @@ class ExportInventorySearchTests(TestCase):
 
         component_names = {row[6] for row in values[1:]}
         self.assertEqual(component_names, {"Processor", "Monitor"})
+
+
+class OfficeScopedInventoryAccessTests(TestCase):
+    def setUp(self):
+        self.user_model = get_user_model()
+        self.office_a_user = self.user_model.objects.create_user(username="office_a", password="password")
+        self.office_b_user = self.user_model.objects.create_user(username="office_b", password="password")
+
+        UserProfile.objects.create(user=self.office_a_user, office_or_hospital="Office A")
+        UserProfile.objects.create(user=self.office_b_user, office_or_hospital="Office B")
+
+        self.inventory_a = Inventory.objects.create(
+            control_number="CN-A",
+            office_or_hospital="Office A",
+            user_name="User A",
+            computer_name="PC-A",
+            assigned_ip="10.0.0.10",
+            received_by="Receiver",
+            position="Staff",
+            date_received=datetime.date(2026, 3, 1),
+            created_at=datetime.date(2026, 3, 19),
+            status=Inventory.Status.ACTIVE,
+        )
+        self.inventory_b = Inventory.objects.create(
+            control_number="CN-B",
+            office_or_hospital="Office B",
+            user_name="User B",
+            computer_name="PC-B",
+            assigned_ip="10.0.0.20",
+            received_by="Receiver",
+            position="Staff",
+            date_received=datetime.date(2026, 3, 1),
+            created_at=datetime.date(2026, 3, 19),
+            status=Inventory.Status.ACTIVE,
+        )
+
+    def test_user_sees_only_inventory_from_their_office(self):
+        self.client.force_login(self.office_a_user)
+
+        response = self.client.get(reverse("inventory:inventory_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.inventory_a.control_number)
+        self.assertNotContains(response, self.inventory_b.control_number)
+
+    def test_user_without_delete_permission_does_not_see_delete_action(self):
+        self.client.force_login(self.office_a_user)
+
+        response = self.client.get(reverse("inventory:inventory_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Delete")
+
+    def test_staff_user_sees_all_inventory(self):
+        staff_user = self.user_model.objects.create_user(username="staff_admin", password="password", is_staff=True)
+        self.client.force_login(staff_user)
+
+        response = self.client.get(reverse("inventory:inventory_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, self.inventory_a.control_number)
+        self.assertContains(response, self.inventory_b.control_number)
+
+
+class InventoryPrintViewTests(TestCase):
+    def _create_inventory(self, **overrides):
+        defaults = {
+            "control_number": "CN-PRINT",
+            "office_or_hospital": "Office A",
+            "user_name": "User 1",
+            "computer_name": "PC-1",
+            "assigned_ip": "10.0.0.1",
+            "received_by": "Receiver",
+            "position": "Staff",
+            "date_received": datetime.date(2026, 3, 1),
+            "created_at": datetime.date(2026, 3, 19),
+            "status": Inventory.Status.ACTIVE,
+        }
+        defaults.update(overrides)
+        return Inventory.objects.create(**defaults)
+
+    def test_print_view_renders_inventory_details_for_printing(self):
+        inventory = self._create_inventory(control_number="CN-PRINT")
+        EquipmentComponent.objects.create(
+            inventory=inventory,
+            component_name="Processor",
+            original_model="Intel i5",
+            original_serial="PROC-123",
+            replacement_model="",
+            replacement_serial="",
+            remarks="",
+        )
+
+        user = get_user_model().objects.create_user(username="print_user", password="password")
+        UserProfile.objects.create(user=user, office_or_hospital="Office A")
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("inventory:inventory_print", args=[inventory.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Inventory Print")
+        self.assertContains(response, "CN-PRINT")
+        self.assertContains(response, "Processor")
 
 
 class ReportsComponentPaginationTests(TestCase):

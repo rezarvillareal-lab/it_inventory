@@ -25,3 +25,5 @@ urlpatterns = [
     path('logout/', auth_views.LogoutView.as_view(next_page='/'), name='logout'),
     
 ]
+
+handler403 = 'inventory.views.custom_403_view' 

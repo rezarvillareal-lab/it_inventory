@@ -1,5 +1,6 @@
 import csv
 from typing import Iterable, Iterator, Optional, Tuple
+from urllib import request
 
 from django import forms
 from django.contrib.auth.decorators import login_required, permission_required
@@ -7,19 +8,43 @@ from django.db.models import Count, Q
 from django.forms import formset_factory
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.core.exceptions import PermissionDenied
 
 try:
     from openpyxl import Workbook
 except ImportError:  # pragma: no cover
     Workbook = None
 from .forms import InventoryForm
-from .models import EquipmentComponent, Inventory
+from .models import EquipmentComponent, Inventory, UserProfile
+
+
+def _get_visible_inventory_queryset(request):
+    if not request.user.is_authenticated:
+        return Inventory.objects.none()
+
+    if request.user.is_superuser or request.user.is_staff:
+        return Inventory.objects.all()
+
+    try:
+        profile = request.user.profile
+    except UserProfile.DoesNotExist:
+        return Inventory.objects.none()
+
+    office = (profile.office_or_hospital or "").strip()
+    if not office:
+        return Inventory.objects.none()
+
+    return Inventory.objects.filter(office_or_hospital__iexact=office)
+
+
+def _get_visible_inventory_or_404(request, pk):
+    return get_object_or_404(_get_visible_inventory_queryset(request), pk=pk)
 
 
 def _inventory_search_queryset(request):
     query = (request.GET.get("q") or "").strip()
 
-    inventories = Inventory.objects.all().prefetch_related("components").order_by("-created_at")
+    inventories = _get_visible_inventory_queryset(request).prefetch_related("components").order_by("-created_at")
 
     if query:
         inventories = inventories.filter(
@@ -47,6 +72,12 @@ def _iter_inventory_component_rows(
             yield inventory, component
 
 
+def home_redirect(request):
+    if request.user.is_authenticated:
+        return redirect("inventory:inventory_list")
+    return redirect("login")
+
+
 def inventory_list(request):
     inventories, query = _inventory_search_queryset(request)
 
@@ -59,15 +90,17 @@ def inventory_list(request):
 
 def reports(request):
 
+    visible_inventory = _get_visible_inventory_queryset(request)
+
     office_report = (
-        Inventory.objects
+        visible_inventory
         .values("office_or_hospital")
         .annotate(total=Count("id"))
         .order_by("office_or_hospital")
     )
 
     status_report = (
-        Inventory.objects
+        visible_inventory
         .values("status")
         .annotate(total=Count("id"))
     )
@@ -94,7 +127,7 @@ def export_inventory_csv(request):
         'Office',
         'Status',
         "Component",
-        "Original Model",
+        "Original Model",+
         "Original Serial",
         "Replacement Model",
         "Replacement Serial",
@@ -191,17 +224,20 @@ class EquipmentStaticForm(forms.Form):
     remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 1}))
 
 
+@login_required
 def dashboard(request):
 
-    total_computers = Inventory.objects.count()
+    visible_inventory = _get_visible_inventory_queryset(request).order_by("-created_at")
 
-    active_count = Inventory.objects.filter(status=Inventory.Status.ACTIVE).count()
-    maintenance_count = Inventory.objects.filter(status=Inventory.Status.MAINTENANCE).count()
-    condemned_count = Inventory.objects.filter(status=Inventory.Status.CONDEMNED).count()
-    disposed_count = Inventory.objects.filter(status=Inventory.Status.DISPOSED).count()
+    total_computers = visible_inventory.count()
+
+    active_count = visible_inventory.filter(status=Inventory.Status.ACTIVE).count()
+    maintenance_count = visible_inventory.filter(status=Inventory.Status.MAINTENANCE).count()
+    condemned_count = visible_inventory.filter(status=Inventory.Status.CONDEMNED).count()
+    disposed_count = visible_inventory.filter(status=Inventory.Status.DISPOSED).count()
 
     offices = (
-        Inventory.objects
+        visible_inventory
         .values("office_or_hospital")
         .annotate(total=Count("id"))
         .order_by("office_or_hospital")
@@ -211,7 +247,7 @@ def dashboard(request):
     office_counts = [o["total"] for o in offices]
 
     statuses = (
-        Inventory.objects
+        visible_inventory
         .values("status")
         .annotate(total=Count("id"))
         .order_by("status")
@@ -220,7 +256,7 @@ def dashboard(request):
     status_labels = [s["status"] for s in statuses]
     status_counts = [s["total"] for s in statuses]
 
-    recent_inventory = Inventory.objects.all().order_by("-created_at")[:5]
+    recent_inventory = visible_inventory.order_by("-created_at")[:5]
 
     context = {
         "total_computers": total_computers,
@@ -345,9 +381,18 @@ def export_inventory_search_excel(request):
 
 # 🔓 PUBLIC VIEW
 def inventory_detail(request, pk):
-    inventory = get_object_or_404(Inventory, pk=pk)
+    inventory = _get_visible_inventory_or_404(request, pk)
     components = inventory.components.all()
     return render(request, 'inventory/inventory_detail.html', {
+        'inventory': inventory,
+        'components': components
+    })
+
+
+def inventory_print(request, pk):
+    inventory = _get_visible_inventory_or_404(request, pk)
+    components = inventory.components.all().order_by("component_name", "id")
+    return render(request, 'inventory/inventory_print.html', {
         'inventory': inventory,
         'components': components
     })
@@ -473,8 +518,13 @@ def inventory_update(request, pk):
 
 
 # 🔐 LOGIN + DELETE PERMISSION REQUIRED
-@permission_required('inventory.delete_inventory', raise_exception=True)
+#@permission_required('inventory.delete_inventory', raise_exception=True)
+@login_required
 def inventory_delete(request, pk):
+
+    if not request.user.has_perm('inventory.delete_inventory'):
+        raise PermissionDenied("Access Denied: You do not have permission to delete inventory items.")
+   
     inventory = get_object_or_404(Inventory, pk=pk)
 
     if request.method == "POST":
@@ -484,3 +534,8 @@ def inventory_delete(request, pk):
     return render(request, 'inventory/inventory_delete.html', {
         'inventory': inventory
     })
+
+def custom_403_view(request, exception=None):
+    return render(request, '403.html', {
+        'error_message': str(exception) if exception else "Access Denied: You do not have permission to delete inventory items."
+    }, status=403)

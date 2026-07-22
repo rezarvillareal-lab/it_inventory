@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory Print</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; color: #222; }
+        h2 { margin-bottom: 8px; }
+        .meta { margin-bottom: 16px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        th, td { border: 1px solid #444; padding: 8px; text-align: left; }
+        th { background: #f2f2f2; }
+        .actions { margin-top: 16px; }
+        @media print {
+            .actions { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <h2>Inventory Print</h2>
+    <div class="meta">
+        <strong>Control Number:</strong> {{ inventory.control_number }}<br>
+        <strong>User Name:</strong> {{ inventory.user_name }}<br>
+        <strong>Computer Name:</strong> {{ inventory.computer_name }}<br>
+        <strong>Office / Hospital:</strong> {{ inventory.office_or_hospital }}<br>
+        <strong>Status:</strong> {{ inventory.status }}
+    </div>
+
+    <h3>I.T. Equipment</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Equipment</th>
+                <th>Original Model</th>
+                <th>Original Serial</th>
+                <th>Replacement Model</th>
+                <th>Replacement Serial</th>
+                <th>Remarks</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for component in components %}
+            <tr>
+                <td>{{ component.component_name }}</td>
+                <td>{{ component.original_model }}</td>
+                <td>{{ component.original_serial }}</td>
+                <td>{{ component.replacement_model }}</td>
+                <td>{{ component.replacement_serial }}</td>
+                <td>{{ component.remarks }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6">No equipment details recorded.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="actions">
+        <button onclick="window.print()">Print</button>
+        <button onclick="window.close()">Close</button>
+    </div>
+</body>
+</html>

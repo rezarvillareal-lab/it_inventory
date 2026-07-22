@@ -97,5 +97,8 @@
 <a href="{% url 'inventory:inventory_list' %}" class="btn btn-secondary">
 Back
 </a>
+<a href="{% url 'inventory:inventory_print' inventory.pk %}" class="btn btn-outline-dark" target="_blank">
+Print
+</a>
 
 {% endblock %}
