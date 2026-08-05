@@ -43,9 +43,9 @@ def _get_visible_inventory_or_404(request, pk):
 
 def _inventory_search_queryset(request):
     query = (request.GET.get("q") or "").strip()
-
     inventories = _get_visible_inventory_queryset(request).prefetch_related("components").order_by("-created_at")
 
+    # Generic text query (searches common inventory fields and component fields)
     if query:
         inventories = inventories.filter(
             Q(control_number__icontains=query)
@@ -54,7 +54,30 @@ def _inventory_search_queryset(request):
             | Q(assigned_ip__icontains=query)
             | Q(office_or_hospital__icontains=query)
             | Q(status__icontains=query)
-        )
+            | Q(components__component_name__icontains=query)
+            | Q(components__original_model__icontains=query)
+            | Q(components__original_serial__icontains=query)
+            | Q(components__replacement_model__icontains=query)
+            | Q(components__replacement_serial__icontains=query)
+            | Q(components__remarks__icontains=query)
+        ).distinct()
+
+    # Additional structured filters (dropdowns)
+    equipment = (request.GET.get("equipment") or "").strip()
+    status_filter = (request.GET.get("status") or "").strip()
+    office_filter = (request.GET.get("office") or "").strip()
+
+    if equipment:
+        inventories = inventories.filter(
+            Q(components__component_name__iexact=equipment)
+            | Q(components__component_name__icontains=equipment)
+        ).distinct()
+
+    if status_filter:
+        inventories = inventories.filter(status__iexact=status_filter)
+
+    if office_filter:
+        inventories = inventories.filter(office_or_hospital__iexact=office_filter)
 
     return inventories, query
 
@@ -81,11 +104,41 @@ def home_redirect(request):
 def inventory_list(request):
     inventories, query = _inventory_search_queryset(request)
 
-    return render(
-        request,
-        "inventory/inventory_list.html",
-        {"inventories": inventories, "query": query},
+    # Build dropdown options
+    visible = _get_visible_inventory_queryset(request)
+    from .models import EquipmentComponent, Inventory as InventoryModel
+
+    component_names = (
+        EquipmentComponent.objects.filter(inventory__in=visible)
+        .values_list("component_name", flat=True)
+        .distinct()
+        .order_by("component_name")
     )
+    equipment_options = [
+        {"value": component_name, "label": component_name}
+        for component_name in component_names
+    ]
+
+    office_choices = (
+        visible.values_list("office_or_hospital", flat=True).distinct().order_by("office_or_hospital")
+    )
+
+    status_choices = [s[0] for s in InventoryModel.Status.choices]
+
+    context = {
+        "inventories": inventories,
+        "query": query,
+        "component_names": list(component_names),
+        "equipment_options": equipment_options,
+        "office_choices": list(office_choices),
+        "status_choices": status_choices,
+        # Echo current filters so template can preselect
+        "selected_equipment": request.GET.get("equipment", ""),
+        "selected_status": request.GET.get("status", ""),
+        "selected_office": request.GET.get("office", ""),
+    }
+
+    return render(request, "inventory/inventory_list.html", context)
 
 
 def reports(request):
@@ -236,6 +289,23 @@ def dashboard(request):
     condemned_count = visible_inventory.filter(status=Inventory.Status.CONDEMNED).count()
     disposed_count = visible_inventory.filter(status=Inventory.Status.DISPOSED).count()
 
+    equipment_queryset = EquipmentComponent.objects.filter(inventory__in=visible_inventory)
+    total_equipment_components = equipment_queryset.count()
+    equipment_breakdown = (
+        equipment_queryset
+        .values("component_name")
+        .annotate(total=Count("id"))
+        .order_by("-total", "component_name")
+    )
+    equipment_type_count = equipment_breakdown.count()
+    top_equipment_breakdown = [
+        {"component_name": item["component_name"], "count": item["total"]}
+        for item in equipment_breakdown[:5]
+    ]
+    equipment_labels = [item["component_name"] for item in equipment_breakdown]
+    equipment_counts = [item["total"] for item in equipment_breakdown]
+    equipment_type_progress = min(100, max(12, equipment_type_count * 10))
+
     offices = (
         visible_inventory
         .values("office_or_hospital")
@@ -264,6 +334,11 @@ def dashboard(request):
         "maintenance_count": maintenance_count,
         "condemned_count": condemned_count,
         "disposed_count": disposed_count,
+        "total_equipment_components": total_equipment_components,
+        "equipment_type_count": equipment_type_count,
+        "top_equipment_breakdown": top_equipment_breakdown,
+        "equipment_labels": equipment_labels,
+        "equipment_counts": equipment_counts,
         "office_labels": office_labels,
         "office_counts": office_counts,
         "status_labels": status_labels,

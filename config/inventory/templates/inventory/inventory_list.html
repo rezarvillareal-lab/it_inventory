@@ -1,73 +1,132 @@
 {% extends 'inventory/base.html' %}
 {% block content %}
 
-<h2>IT Equipment Inventory</h2>
+<div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+    <div class="card-body p-4 p-lg-5">
+        <div class="row align-items-center g-3 mb-4">
+            <div class="col-lg-8">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rounded-3 bg-primary bg-opacity-10 px-6 py-3 text-primary fw-bold">IT Equipment Inventory</div>
+                    <!-- <div>
+                        <p class="text-uppercase text-muted small fw-semibold mb-1">Asset Management</p>
+                        <h2 class="section-title mb-0">IT Equipment Inventory</h2>
+                    </div> -->
+                </div>
+            </div>
+            <div class="col-lg-4 text-lg-end">
+                <a href="{% url 'inventory:inventory_add' %}" class="btn btn-primary rounded-pill px-4">Add Inventory</a>
+            </div>
+        </div>
 
-<a href="{% url 'inventory:inventory_add' %}" class="btn btn-primary mb-3">Add Inventory</a>
+        <div class="card border-0 bg-light-subtle rounded-4 p-3 mb-4">
+            <form method="get">
+                <div class="row g-2 align-items-end">
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label small text-muted mb-1">Keyword</label>
+                        <div class="input-group">
+                            <input
+                                type="text"
+                                name="q"
+                                class="form-control"
+                                placeholder="Search equipment, user, control number..."
+                                value="{{ query }}"
+                            >
+                            <button class="btn btn-primary">Search</button>
+                        </div>
+                    </div>
 
-<div class="mb-3">
-    <a href="{% url 'inventory:inventory_export_csv' %}?q={{ query|urlencode }}" class="btn btn-outline-secondary btn-sm">Export CSV</a>
-    <a href="{% url 'inventory:inventory_export_excel' %}?q={{ query|urlencode }}" class="btn btn-outline-secondary btn-sm">Export Excel</a>
+                    <div class="col-6 col-lg-2">
+                        <label class="form-label small text-muted mb-1">Equipment</label>
+                        <select name="equipment" class="form-select form-select-sm">
+                            <option value="">All Equipment</option>
+                            {% for option in equipment_options %}
+                            <option value="{{ option.value }}" {% if selected_equipment == option.value %}selected{% endif %}>{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-6 col-lg-2">
+                        <label class="form-label small text-muted mb-1">Status</label>
+                        <select name="status" class="form-select form-select-sm">
+                            <option value="">Any Status</option>
+                            {% for st in status_choices %}
+                            <option value="{{ st }}" {% if selected_status == st %}selected{% endif %}>{{ st }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="col-12 col-lg-4">
+                        <label class="form-label small text-muted mb-1">Office</label>
+                        <div class="d-flex gap-2">
+                            <select name="office" class="form-select form-select-sm">
+                                <option value="">All Offices</option>
+                                {% for off in office_choices %}
+                                <option value="{{ off }}" {% if selected_office == off %}selected{% endif %}>{{ off }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-2 mb-3">
+            <div>
+                <h5 class="mb-1">Inventory Records</h5>
+                <p class="text-muted mb-0">Showing {{ inventories|length }} item(s)</p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="{% url 'inventory:inventory_export_csv' %}?q={{ query|urlencode }}" class="btn btn-outline-secondary btn-sm rounded-pill">Export CSV</a>
+                <a href="{% url 'inventory:inventory_export_excel' %}?q={{ query|urlencode }}" class="btn btn-outline-secondary btn-sm rounded-pill">Export Excel</a>
+            </div>
+        </div>
+
+        <div class="table-responsive rounded-3 border">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="fw-semibold">Control #</th>
+                        <th class="fw-semibold">User</th>
+                        <th class="fw-semibold">Office</th>
+                        <th class="fw-semibold">Date</th>
+                        <th class="fw-semibold">Status</th>
+                        <th class="fw-semibold text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for item in inventories %}
+                    <tr>
+                        <td>
+                            <div class="fw-semibold">{{ item.control_number }}</div>
+                        </td>
+                        <td>{{ item.user_name }}</td>
+                        <td>{{ item.office_or_hospital }}</td>
+                        <td>{{ item.date_received }}</td>
+                        <td><span class="badge rounded-pill bg-success-subtle text-success-emphasis">{{ item.status }}</span></td>
+                        <td class="text-end">
+                            <div class="d-flex flex-wrap justify-content-end gap-2">
+                                <a href="{% url 'inventory:inventory_detail' item.pk %}" class="btn btn-info btn-sm rounded-pill">View</a>
+                                <a href="{% url 'inventory:inventory_print' item.pk %}" class="btn btn-outline-dark btn-sm rounded-pill" target="_blank">Print</a>
+                                {% if perms.inventory.change_inventory %}
+                                <a href="{% url 'inventory:inventory_edit' item.pk %}" class="btn btn-warning btn-sm rounded-pill">Edit</a>
+                                {% endif %}
+                                {% if perms.inventory.delete_inventory %}
+                                <a href="{% url 'inventory:inventory_delete' item.pk %}" class="btn btn-danger btn-sm rounded-pill">Delete</a>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted py-4">
+                        No inventory records found
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
-<form method="get" class="mb-3">
-
-<div class="input-group">
-
-<input
-type="text"
-name="q"
-class="form-control"
-placeholder="Search computer, user, control number..."
-value="{{ query }}"
->
-
-<button class="btn btn-primary">
-Search
-</button>
-
-</div>
-
-</form>
-
-<table class="table table-bordered">
-    <thead>
-        <tr>
-            <th>Control #</th>
-            <th>User</th>
-            <th>Office</th>
-            <th>Date</th>
-            <th>Status</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-    {% for item in inventories %}
-        <tr>
-            <td>{{ item.control_number }}</td>
-            <td>{{ item.user_name }}</td>
-            <td>{{ item.office_or_hospital }}</td>
-            <td>{{ item.date_received }}</td>
-            <td>{{ item.status }}</td>
-            <td>
-                <a href="{% url 'inventory:inventory_detail' item.pk %}" class="btn btn-info btn-sm">View</a>
-                <a href="{% url 'inventory:inventory_print' item.pk %}" class="btn btn-outline-dark btn-sm" target="_blank">Print</a>
-                {% if perms.inventory.change_inventory %}
-                <a href="{% url 'inventory:inventory_edit' item.pk %}" class="btn btn-warning btn-sm">Edit</a>
-                {% endif %}
-                {% if perms.inventory.delete_inventory %}
-                <a href="{% url 'inventory:inventory_delete' item.pk %}" class="btn btn-danger btn-sm">Delete</a>
-                {% endif %}
-            </td>
-        </tr>
-    {% empty %}
-<tr>
-<td colspan="5" style="text-align:center;">
-No inventory records found
-</td>
-</tr>
-{% endfor %}
-</tbody>
-</table>
-
-{% endblock %}  
+{% endblock %}

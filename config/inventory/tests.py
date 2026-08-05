@@ -49,11 +49,18 @@ class DashboardViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'id="officeChart"')
         self.assertContains(response, 'id="statusChart"')
+        self.assertContains(response, 'id="equipmentChart"')
+        self.assertContains(response, 'Equipment Summary')
 
         office_labels = response.context["office_labels"]
         office_counts = response.context["office_counts"]
         status_labels = response.context["status_labels"]
         status_counts = response.context["status_counts"]
+        self.assertIn("total_equipment_components", response.context)
+        self.assertIn("equipment_type_count", response.context)
+        self.assertIn("top_equipment_breakdown", response.context)
+        self.assertIn("equipment_labels", response.context)
+        self.assertIn("equipment_counts", response.context)
 
         self.assertIsInstance(office_labels, list)
         self.assertIsInstance(office_counts, list)
@@ -71,6 +78,51 @@ class DashboardViewTests(TestCase):
         self.assertEqual(status_totals.get(Inventory.Status.CONDEMNED), 1)
         self.assertEqual(status_totals.get(Inventory.Status.DISPOSED), 1)
 
+    def test_dashboard_equipment_summary_includes_component_counts(self):
+        user = get_user_model().objects.create_superuser(username="admin", password="password", email="admin@example.com")
+        self.client.force_login(user)
+
+        inventory1 = self._create_inventory(control_number="CN-1", office_or_hospital="Office A")
+        inventory2 = self._create_inventory(control_number="CN-2", office_or_hospital="Office A")
+
+        EquipmentComponent.objects.create(
+            inventory=inventory1,
+            component_name="Processor",
+            original_model="Intel i7",
+            original_serial="PROC-123",
+            replacement_model="",
+            replacement_serial="",
+            remarks="",
+        )
+        EquipmentComponent.objects.create(
+            inventory=inventory1,
+            component_name="Monitor",
+            original_model="Dell",
+            original_serial="MON-456",
+            replacement_model="",
+            replacement_serial="",
+            remarks="",
+        )
+        EquipmentComponent.objects.create(
+            inventory=inventory2,
+            component_name="Processor",
+            original_model="Intel i5",
+            original_serial="PROC-789",
+            replacement_model="",
+            replacement_serial="",
+            remarks="",
+        )
+
+        response = self.client.get(reverse("inventory:dashboard"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["total_equipment_components"], 3)
+        self.assertEqual(response.context["equipment_type_count"], 2)
+        self.assertEqual(response.context["top_equipment_breakdown"][0]["component_name"], "Processor")
+        self.assertEqual(response.context["top_equipment_breakdown"][0]["count"], 2)
+        self.assertEqual(response.context["top_equipment_breakdown"][1]["component_name"], "Monitor")
+        self.assertEqual(response.context["top_equipment_breakdown"][1]["count"], 1)
+
     def test_dashboard_shows_only_items_for_the_user_office_scope(self):
         user = get_user_model().objects.create_user(username="office_a_user", password="password")
         UserProfile.objects.create(user=user, office_or_hospital="Office A")
@@ -87,6 +139,81 @@ class DashboardViewTests(TestCase):
         self.assertEqual(response.context["office_counts"], [1])
         self.assertEqual(response.context["status_labels"], [Inventory.Status.ACTIVE])
         self.assertEqual(response.context["status_counts"], [1])
+
+
+class InventorySearchTests(TestCase):
+    def _create_inventory(self, **overrides):
+        defaults = {
+            "control_number": "CN-SEARCH",
+            "office_or_hospital": "Office A",
+            "user_name": "User 1",
+            "computer_name": "PC-1",
+            "assigned_ip": "10.0.0.1",
+            "received_by": "Receiver",
+            "position": "Staff",
+            "date_received": datetime.date(2026, 3, 1),
+            "created_at": datetime.date(2026, 3, 19),
+            "status": Inventory.Status.ACTIVE,
+        }
+        defaults.update(overrides)
+        return Inventory.objects.create(**defaults)
+
+    def test_inventory_list_exposes_equipment_filter_options(self):
+        inventory = self._create_inventory(control_number="CN-EQ-1")
+        EquipmentComponent.objects.create(
+            inventory=inventory,
+            component_name="Processor",
+            original_model="Intel i7",
+            original_serial="PROC-123",
+            replacement_model="",
+            replacement_serial="",
+            remarks="",
+        )
+
+        user = get_user_model().objects.create_user(username="filter_user", password="password")
+        UserProfile.objects.create(user=user, office_or_hospital="Office A")
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("inventory:inventory_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("equipment_options", response.context)
+        self.assertTrue(
+            any(option.get("value") == "Processor" for option in response.context["equipment_options"])
+        )
+
+    def test_inventory_search_matches_equipment_component_details(self):
+        inventory = self._create_inventory(control_number="CN-EQ-1")
+        other_inventory = self._create_inventory(control_number="CN-EQ-2")
+
+        EquipmentComponent.objects.create(
+            inventory=inventory,
+            component_name="Processor",
+            original_model="Intel i7",
+            original_serial="PROC-123",
+            replacement_model="",
+            replacement_serial="",
+            remarks="",
+        )
+        EquipmentComponent.objects.create(
+            inventory=other_inventory,
+            component_name="Monitor",
+            original_model="Dell 24",
+            original_serial="MON-001",
+            replacement_model="",
+            replacement_serial="",
+            remarks="",
+        )
+
+        user = get_user_model().objects.create_user(username="search_user", password="password")
+        UserProfile.objects.create(user=user, office_or_hospital="Office A")
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("inventory:inventory_list") + "?q=Intel")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "CN-EQ-1")
+        self.assertNotContains(response, "CN-EQ-2")
 
 
 class ExportInventorySearchTests(TestCase):

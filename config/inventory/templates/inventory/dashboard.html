@@ -2,34 +2,149 @@
 
 {% block content %}
 
-<h2>IT Inventory Dashboard</h2>
-
-<div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="card text-white bg-primary">
-            <div class="card-body">
-                <h5 class="card-title mb-1">Total Computers</h5>
-                <div class="display-6 fw-semibold">{{ total_computers }}</div>
+<div class="page-shell">
+    <div class="hero-shell p-4 p-lg-5 mb-4">
+        <div class="row align-items-center g-3">
+            <div class="col-lg-8">
+                <p class="text-uppercase fw-semibold mb-2 small opacity-75">Operations Overview</p>
+                <h2 class="fw-bold mb-2">IT Inventory Dashboard</h2>
+                <p class="mb-0 opacity-90">A clearer view of your office devices, current status, and asset distribution.</p>
             </div>
-        </div>
-    </div>
-</div>
-
-<div class="row g-4">
-    <div class="col-lg-6">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Computers per Office</h5>
-                <canvas id="officeChart" height="260"></canvas>
+            <div class="col-lg-4 text-lg-end">
+                <span class="badge-soft rounded-pill px-3 py-2">Live inventory insights</span>
             </div>
         </div>
     </div>
 
-    <div class="col-lg-6">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">Computers by Status</h5>
-                <canvas id="statusChart" height="260"></canvas>
+    <div class="row g-3 mb-4">
+        <div class="col-lg-8">
+            <div class="card card-soft h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="card-title mb-1 section-title">Total Computers</h5>
+                            <p class="text-muted mb-0">Tracked assets in the system</p>
+                        </div>
+                        <span class="badge bg-primary rounded-pill">System-wide</span>
+                    </div>
+                    <div class="display-5 fw-semibold mt-3">{{ total_computers }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="row g-3">
+                <div class="col-12">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-4">
+                                <div>
+                                    <h6 class="text-uppercase text-muted small mb-2">Equipment Summary</h6>
+                                    <p class="mb-0 text-muted">Overview of the component inventory and the most common equipment types.</p>
+                                </div>
+                                <span class="badge bg-primary rounded-pill">Live</span>
+                            </div>
+
+                            <div class="row g-3 mb-4">
+                                <div class="col-6">
+                                    <div class="rounded-3 p-3 bg-primary bg-opacity-10 h-100">
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <div>
+                                                <div class="text-uppercase text-muted small mb-2">Total entries</div>
+                                                <div class="h2 fw-semibold mb-1">{{ total_equipment_components }}</div>
+                                                <div class="small text-muted">All equipment components tracked</div>
+                                            </div>
+                                            <div class="d-flex align-items-center justify-content-center rounded-circle bg-white shadow-sm" style="width:40px;height:40px;">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#0f6cbd" viewBox="0 0 16 16">
+                                                    <path d="M2 2a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h1v1.5A1.5 1.5 0 0 0 3.5 14H4a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1h.5A1.5 1.5 0 0 0 12 12.5V11h1a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1H2Zm1 9V4h10v7H3Zm2 2a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 .5.5v.5H5Zm0-8a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.5.5h-5A.5.5 0 0 1 5 5Z"/>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        <div class="progress" style="height:8px; border-radius:999px; overflow:hidden;">
+                                            <div class="progress-bar bg-primary" role="progressbar" style="width:100%" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="rounded-3 p-3 bg-success bg-opacity-10 h-100">
+                                        <div class="d-flex align-items-center justify-content-between mb-2">
+                                            <div>
+                                                <div class="text-uppercase text-muted small mb-2">Equipment types</div>
+                                                <div class="h2 fw-semibold mb-1">{{ equipment_type_count }}</div>
+                                                <div class="small text-muted">Unique component categories</div>
+                                            </div>
+                                            <div class="d-flex align-items-center justify-content-center rounded-circle bg-white shadow-sm" style="width:40px;height:40px;">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#198754" viewBox="0 0 16 16">
+                                                    <path d="M8 1a1 1 0 0 1 1 1v3.093c.323.057.636.144.933.26L12.5 4.5a1 1 0 0 1 1.415 1.414l-1.375 1.375c.115.298.202.61.26.933H14a1 1 0 0 1 0 2h-1.093a4.001 4.001 0 0 1-1.03 1.93l1.42 1.42a1 1 0 0 1-1.415 1.414l-1.42-1.42A4.002 4.002 0 0 1 9 14.093V15a1 1 0 1 1-2 0v-1.093a4.002 4.002 0 0 1-1.93-1.03l-1.42 1.42A1 1 0 0 1 2.234 12.66l1.42-1.42A4.002 4.002 0 0 1 1.907 9H.813a1 1 0 1 1 0-2h1.094c.057-.323.144-.636.26-.933L1.793 4.914A1 1 0 0 1 3.207 3.5l1.375 1.375A4.001 4.001 0 0 1 6.067 4.76V1a1 1 0 0 1 1-1Z"/>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        <div class="progress" style="height:8px; border-radius:999px; overflow:hidden;">
+                                            <div class="progress-bar bg-success" role="progressbar" style="width:{{ equipment_type_progress }}%" aria-valuenow="{{ equipment_type_progress }}" aria-valuemin="0" aria-valuemax="100"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="border rounded-3 p-3">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <div>
+                                        <h6 class="mb-1">Top equipment</h6>
+                                        <p class="text-muted small mb-0">Most frequent component types in your inventory</p>
+                                    </div>
+                                    <span class="badge bg-secondary rounded-pill">Top {{ top_equipment_breakdown|length }}</span>
+                                </div>
+                                <ul class="list-unstyled mb-0">
+                                    {% for item in top_equipment_breakdown %}
+                                        <li class="d-flex justify-content-between align-items-center py-2 border-bottom">
+                                            <span>{{ item.component_name }}</span>
+                                            <span class="badge bg-secondary rounded-pill">{{ item.count }}</span>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="text-uppercase text-muted small mb-3">Quick Access</h6>
+                            <a class="btn btn-primary btn-ghost w-100 mb-2" href="{% url 'inventory:inventory_list' %}">View Inventory</a>
+                            <a class="btn btn-outline-primary btn-ghost w-100" href="{% url 'inventory:reports' %}">Open Reports</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title section-title">Computers per Office</h5>
+                    <canvas id="officeChart" height="260"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title section-title">Computers by Status</h5>
+                    <canvas id="statusChart" height="260"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title section-title">Equipment by Type</h5>
+                    <canvas id="equipmentChart" height="260"></canvas>
+                </div>
             </div>
         </div>
     </div>
@@ -39,6 +154,8 @@
 {{ office_counts|json_script:"office-counts" }}
 {{ status_labels|json_script:"status-labels" }}
 {{ status_counts|json_script:"status-counts" }}
+{{ equipment_labels|json_script:"equipment-labels" }}
+{{ equipment_counts|json_script:"equipment-counts" }}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
@@ -62,6 +179,9 @@ const statusCounts = getJsonScript('status-counts');
 
 const officeCanvas = document.getElementById('officeChart');
 const statusCanvas = document.getElementById('statusChart');
+const equipmentCanvas = document.getElementById('equipmentChart');
+const equipmentLabels = getJsonScript('equipment-labels');
+const equipmentCounts = getJsonScript('equipment-counts');
 
 if (typeof Chart === 'undefined') {
     console.warn('Dashboard charts not initialized (Chart.js missing).');
@@ -74,8 +194,8 @@ if (typeof Chart === 'undefined') {
                 datasets: [{
                     label: 'Computers',
                     data: officeCounts,
-                    backgroundColor: 'rgba(13, 110, 253, 0.75)',
-                    borderColor: 'rgba(13, 110, 253, 1)',
+                    backgroundColor: 'rgba(15, 108, 189, 0.8)',
+                    borderColor: 'rgba(15, 108, 189, 1)',
                     borderWidth: 1,
                     borderRadius: 8,
                     maxBarThickness: 42
@@ -160,6 +280,54 @@ if (typeof Chart === 'undefined') {
         });
     } else {
         console.warn('Status chart not initialized (missing data or canvas).');
+    }
+
+    if (equipmentCanvas && Array.isArray(equipmentLabels) && Array.isArray(equipmentCounts)) {
+        new Chart(equipmentCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: equipmentLabels,
+                datasets: [{
+                    label: 'Equipment count',
+                    data: equipmentCounts,
+                    backgroundColor: 'rgba(15, 108, 189, 0.75)',
+                    borderColor: 'rgba(15, 108, 189, 1)',
+                    borderWidth: 1,
+                    borderRadius: 8,
+                    maxBarThickness: 34
+                }]
+            },
+            options: {
+                responsive: true,
+                indexAxis: equipmentLabels.length > 8 ? 'y' : 'x',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                const label = context.label ?? '';
+                                const value = context.parsed ?? 0;
+                                return `${label}: ${value}`;
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        grid: { display: false },
+                        ticks: { precision: 0 }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        grid: { color: 'rgba(0,0,0,0.06)' },
+                        ticks: { precision: 0 }
+                    }
+                }
+            }
+        });
+    } else {
+        console.warn('Equipment chart not initialized (missing data or canvas).');
     }
 }
 
