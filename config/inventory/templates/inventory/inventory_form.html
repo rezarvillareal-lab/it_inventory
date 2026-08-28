@@ -16,19 +16,13 @@
 
     {{ formset.management_form }}
 
-    <table class="table table-bordered text-center">
+    <table class="table table-bordered text-center" style="table-layout: fixed; width: 100%;">
         <thead class="table-dark">
             <tr>
-                <th rowspan="2">I.T. EQUIPMENT</th>
-                <th colspan="2">ORIGINAL</th>
-                <th colspan="2">REPLACEMENT</th>
-                <th rowspan="2">REMARKS</th>
-            </tr>
-            <tr>
-                <th>Model/Type</th>
-                <th>Serial No.</th>
-                <th>Model/Type</th>
-                <th>Serial No.</th>
+                <th style="width: 18%;">I.T. EQUIPMENT</th>
+                <th style="width: 36%;">Model/Type</th>
+                <th style="width: 18%;">Serial No.</th>
+                <th style="width: 36%;">REMARKS</th>
             </tr>
         </thead>
         <tbody>
@@ -37,8 +31,6 @@
                 <td>{{ f.equipment_name }}</td>
                 <td>{{ f.original_model }}</td>
                 <td>{{ f.original_serial }}</td>
-                <td>{{ f.replacement_model }}</td>
-                <td>{{ f.replacement_serial }}</td>
                 <td>{{ f.remarks }}</td>
             </tr>
             {% endfor %}

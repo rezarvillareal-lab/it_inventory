@@ -3,19 +3,56 @@ from typing import Iterable, Iterator, Optional, Tuple
 from urllib import request
 
 from django import forms
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.decorators import login_required, permission_required
+from django.contrib.auth.forms import PasswordChangeForm
 from django.db.models import Count, Q
 from django.forms import formset_factory
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.core.exceptions import PermissionDenied
 
+from .forms import InventoryForm
+from .models import EquipmentComponent, Inventory, UserProfile
+
+
+class UserProfileForm(forms.ModelForm):
+    class Meta:
+        model = UserProfile
+        fields = []
+
+    def __init__(self, *args, user=None, **kwargs):
+        self.user = user
+        super().__init__(*args, **kwargs)
+        self.fields["first_name"] = forms.CharField(
+            max_length=150,
+            required=True,
+            initial=user.first_name if user is not None else "",
+            disabled=True,
+            label="First Name",
+        )
+        self.fields["last_name"] = forms.CharField(
+            max_length=150,
+            required=True,
+            initial=user.last_name if user is not None else "",
+            disabled=True,
+            label="Last Name",
+        )
+        self.fields["office_or_hospital"] = forms.CharField(
+            max_length=200,
+            required=False,
+            initial=(self.instance.office_or_hospital if self.instance and self.instance.pk else ""),
+            disabled=True,
+            label="Office or Hospital",
+        )
+
+    def save(self, commit=True):
+        return self.instance
+
 try:
     from openpyxl import Workbook
 except ImportError:  # pragma: no cover
     Workbook = None
-from .forms import InventoryForm
-from .models import EquipmentComponent, Inventory, UserProfile
 
 
 def _get_visible_inventory_queryset(request):
@@ -57,8 +94,6 @@ def _inventory_search_queryset(request):
             | Q(components__component_name__icontains=query)
             | Q(components__original_model__icontains=query)
             | Q(components__original_serial__icontains=query)
-            | Q(components__replacement_model__icontains=query)
-            | Q(components__replacement_serial__icontains=query)
             | Q(components__remarks__icontains=query)
         ).distinct()
 
@@ -99,6 +134,37 @@ def home_redirect(request):
     if request.user.is_authenticated:
         return redirect("inventory:inventory_list")
     return redirect("login")
+
+
+@login_required
+def user_profile(request):
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+
+    password_form = None
+    profile_form = None
+
+    if request.method == "POST":
+        if "update_profile" in request.POST:
+            profile_form = UserProfileForm(request.POST, instance=profile, user=request.user)
+            if profile_form.is_valid():
+                profile_form.save()
+                return redirect("inventory:user_profile")
+        elif "change_password" in request.POST:
+            password_form = PasswordChangeForm(request.user, request.POST)
+            if password_form.is_valid():
+                user = password_form.save()
+                update_session_auth_hash(request, user)
+                return redirect("inventory:user_profile")
+
+    if password_form is None:
+        password_form = PasswordChangeForm(request.user)
+    if profile_form is None:
+        profile_form = UserProfileForm(instance=profile, user=request.user)
+
+    return render(request, "inventory/user_profile.html", {
+        "profile_form": profile_form,
+        "password_form": password_form,
+    })
 
 
 def inventory_list(request):
@@ -180,10 +246,8 @@ def export_inventory_csv(request):
         'Office',
         'Status',
         "Component",
-        "Original Model",+
+        "Original Model",
         "Original Serial",
-        "Replacement Model",
-        "Replacement Serial",
         "Remarks",
     ])
 
@@ -200,8 +264,6 @@ def export_inventory_csv(request):
             component.component_name if component else "",
             component.original_model if component else "",
             component.original_serial if component else "",
-            component.replacement_model if component else "",
-            component.replacement_serial if component else "",
             component.remarks if component else "",
         ])
 
@@ -231,8 +293,6 @@ def export_inventory_excel(request):
         "Component",
         "Original Model",
         "Original Serial",
-        "Replacement Model",
-        "Replacement Serial",
         "Remarks",
     ])
 
@@ -249,8 +309,6 @@ def export_inventory_excel(request):
             component.component_name if component else "",
             component.original_model if component else "",
             component.original_serial if component else "",
-            component.replacement_model if component else "",
-            component.replacement_serial if component else "",
             component.remarks if component else "",
         ])
 
@@ -272,8 +330,6 @@ class EquipmentStaticForm(forms.Form):
     )
     original_model = forms.CharField(required=False)
     original_serial = forms.CharField(required=False)
-    replacement_model = forms.CharField(required=False)
-    replacement_serial = forms.CharField(required=False)
     remarks = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows': 1}))
 
 
@@ -368,8 +424,6 @@ def export_inventory_search_csv(request):
             "Component",
             "Original Model",
             "Original Serial",
-            "Replacement Model",
-            "Replacement Serial",
             "Remarks",
         ]
     )
@@ -386,8 +440,6 @@ def export_inventory_search_csv(request):
                 component.component_name if component else "",
                 component.original_model if component else "",
                 component.original_serial if component else "",
-                component.replacement_model if component else "",
-                component.replacement_serial if component else "",
                 component.remarks if component else "",
             ]
         )
@@ -420,8 +472,6 @@ def export_inventory_search_excel(request):
             "Component",
             "Original Model",
             "Original Serial",
-            "Replacement Model",
-            "Replacement Serial",
             "Remarks",
         ]
     )
@@ -438,8 +488,6 @@ def export_inventory_search_excel(request):
                 component.component_name if component else "",
                 component.original_model if component else "",
                 component.original_serial if component else "",
-                component.replacement_model if component else "",
-                component.replacement_serial if component else "",
                 component.remarks if component else "",
             ]
         )
@@ -485,7 +533,7 @@ def inventory_create(request):
     ]
 
     if request.method == "POST":
-        form = InventoryForm(request.POST)
+        form = InventoryForm(request.POST, user=request.user)
         formset = EquipmentFormSet(request.POST)
 
         if form.is_valid() and formset.is_valid():
@@ -498,15 +546,13 @@ def inventory_create(request):
                     component_name=form_data["equipment_name"],
                     original_model=form_data.get("original_model", ""),
                     original_serial=form_data.get("original_serial", ""),
-                   # replacement_model=form_data.get("replacement_model", ""),
-                   # replacement_serial=form_data.get("replacement_serial", ""),
                     remarks=form_data.get("remarks", "")
                 )
 
             return redirect("inventory:inventory_list")
 
     else:
-        form = InventoryForm()
+        form = InventoryForm(user=request.user)
 
         initial_data = [
             {"equipment_name": name}
@@ -520,7 +566,7 @@ def inventory_create(request):
         "formset": formset
     })
 
-# 🔐 LOGIN REQUIRED
+
 @login_required
 def inventory_update(request, pk):
 
@@ -532,7 +578,7 @@ def inventory_update(request, pk):
 
     if request.method == "POST":
 
-        form = InventoryForm(request.POST, instance=inventory)
+        form = InventoryForm(request.POST, instance=inventory, user=request.user)
         formset = EquipmentFormSet(request.POST)
 
         if form.is_valid() and formset.is_valid():
@@ -551,8 +597,6 @@ def inventory_update(request, pk):
                         component_name=form_data["equipment_name"],
                         original_model=form_data.get("original_model", ""),
                         original_serial=form_data.get("original_serial", ""),
-                        replacement_model=form_data.get("replacement_model", ""),
-                        replacement_serial=form_data.get("replacement_serial", ""),
                         remarks=form_data.get("remarks", "")
                     )
 
@@ -560,7 +604,7 @@ def inventory_update(request, pk):
 
     else:
 
-        form = InventoryForm(instance=inventory)
+        form = InventoryForm(instance=inventory, user=request.user)
 
         components = inventory.components.all()
 
@@ -575,8 +619,6 @@ def inventory_update(request, pk):
                     "equipment_name": name,
                     "original_model": component.original_model,
                     "original_serial": component.original_serial,
-                    "replacement_model": component.replacement_model,
-                    "replacement_serial": component.replacement_serial,
                     "remarks": component.remarks
                 })
             else:

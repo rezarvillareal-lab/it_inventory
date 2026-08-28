@@ -80,10 +80,6 @@ class EquipmentComponent(models.Model):
     original_model = models.CharField(max_length=200, blank=True)
     original_serial = models.CharField(max_length=200, blank=True)
 
-    # REPLACEMENT
-    replacement_model = models.CharField(max_length=200, blank=True)
-    replacement_serial = models.CharField(max_length=200, blank=True)
-
     remarks = models.TextField(blank=True)
 
     def __str__(self):

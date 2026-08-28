@@ -9,12 +9,115 @@ from django.urls import reverse
 from .models import EquipmentComponent, Inventory, UserProfile
 
 
+class InventoryCreateViewTests(TestCase):
+    def test_inventory_create_sets_created_by_and_created_at_automatically(self):
+        user = get_user_model().objects.create_user(
+            username="creator",
+            password="password",
+            first_name="John",
+            last_name="Doe",
+        )
+        self.client.force_login(user)
+
+        payload = {
+            "control_number": "CN-100",
+            "office_or_hospital": "Office A",
+            "user_name": "User 1",
+            "computer_name": "PC-1",
+            "assigned_ip": "10.0.0.1",
+            "received_by": "Receiver",
+            "position": "Staff",
+            "date_received": "2026-03-01",
+            "status": Inventory.Status.ACTIVE,
+            "form-TOTAL_FORMS": "1",
+            "form-INITIAL_FORMS": "0",
+            "form-MIN_NUM_FORMS": "0",
+            "form-MAX_NUM_FORMS": "1000",
+            "form-0-equipment_name": "Processor",
+            "form-0-original_model": "Intel i5",
+            "form-0-original_serial": "PROC-999",
+            "form-0-remarks": "",
+        }
+
+        response = self.client.post(reverse("inventory:inventory_add"), payload)
+
+        self.assertEqual(response.status_code, 302)
+        inventory = Inventory.objects.get(control_number="CN-100")
+        self.assertEqual(inventory.created_by, "John Doe")
+        self.assertEqual(inventory.created_at, datetime.date.today())
+
+
 class RootViewTests(TestCase):
     def test_anonymous_user_is_redirected_to_login_from_home(self):
         response = self.client.get("/")
 
         self.assertEqual(response.status_code, 302)
         self.assertRedirects(response, reverse("login"))
+
+
+class UserProfilePasswordChangeTests(TestCase):
+    def test_logged_in_user_can_change_password_from_profile_page(self):
+        user = get_user_model().objects.create_user(
+            username="profile_user",
+            password="old-password-123",
+            first_name="Jane",
+            last_name="Doe",
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("inventory:user_profile"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Change Password")
+
+        response = self.client.post(
+            reverse("inventory:user_profile"),
+            {
+                "change_password": "1",
+                "old_password": "old-password-123",
+                "new_password1": "new-password-456",
+                "new_password2": "new-password-456",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        user.refresh_from_db()
+        self.assertTrue(user.check_password("new-password-456"))
+        self.assertTrue(self.client.login(username="profile_user", password="new-password-456"))
+
+    def test_user_profile_displays_name_and_office_as_read_only(self):
+        user = get_user_model().objects.create_user(
+            username="office_user",
+            password="password123",
+            first_name="Mary",
+            last_name="Smith",
+        )
+        UserProfile.objects.create(user=user, office_or_hospital="Office B")
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("inventory:user_profile"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Mary")
+        self.assertContains(response, "Smith")
+        self.assertContains(response, "Office B")
+        self.assertNotContains(response, 'name="first_name"')
+        self.assertNotContains(response, 'name="last_name"')
+        self.assertNotContains(response, 'name="office_or_hospital"')
+
+        response = self.client.post(
+            reverse("inventory:user_profile"),
+            {
+                "update_profile": "1",
+                "first_name": "Mary Ann",
+                "last_name": "Smith Jr.",
+                "office_or_hospital": "Office C",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        user.refresh_from_db()
+        self.assertEqual(user.first_name, "Mary")
+        self.assertEqual(user.last_name, "Smith")
+        self.assertEqual(user.profile.office_or_hospital, "Office B")
 
 
 class DashboardViewTests(TestCase):
@@ -90,8 +193,6 @@ class DashboardViewTests(TestCase):
             component_name="Processor",
             original_model="Intel i7",
             original_serial="PROC-123",
-            replacement_model="",
-            replacement_serial="",
             remarks="",
         )
         EquipmentComponent.objects.create(
@@ -99,8 +200,6 @@ class DashboardViewTests(TestCase):
             component_name="Monitor",
             original_model="Dell",
             original_serial="MON-456",
-            replacement_model="",
-            replacement_serial="",
             remarks="",
         )
         EquipmentComponent.objects.create(
@@ -108,8 +207,6 @@ class DashboardViewTests(TestCase):
             component_name="Processor",
             original_model="Intel i5",
             original_serial="PROC-789",
-            replacement_model="",
-            replacement_serial="",
             remarks="",
         )
 
@@ -165,8 +262,6 @@ class InventorySearchTests(TestCase):
             component_name="Processor",
             original_model="Intel i7",
             original_serial="PROC-123",
-            replacement_model="",
-            replacement_serial="",
             remarks="",
         )
 
@@ -191,8 +286,6 @@ class InventorySearchTests(TestCase):
             component_name="Processor",
             original_model="Intel i7",
             original_serial="PROC-123",
-            replacement_model="",
-            replacement_serial="",
             remarks="",
         )
         EquipmentComponent.objects.create(
@@ -200,8 +293,6 @@ class InventorySearchTests(TestCase):
             component_name="Monitor",
             original_model="Dell 24",
             original_serial="MON-001",
-            replacement_model="",
-            replacement_serial="",
             remarks="",
         )
 
@@ -242,8 +333,6 @@ class ExportInventorySearchTests(TestCase):
             component_name="Processor",
             original_model="Intel i5",
             original_serial="PROC-123",
-            replacement_model="Intel i7",
-            replacement_serial="PROC-999",
             remarks="Replaced",
         )
         EquipmentComponent.objects.create(
@@ -251,8 +340,6 @@ class ExportInventorySearchTests(TestCase):
             component_name="Monitor",
             original_model="Dell 24",
             original_serial="MON-001",
-            replacement_model="",
-            replacement_serial="",
             remarks="",
         )
         EquipmentComponent.objects.create(
@@ -260,8 +347,6 @@ class ExportInventorySearchTests(TestCase):
             component_name="Keyboard",
             original_model="Logitech",
             original_serial="KBD-777",
-            replacement_model="",
-            replacement_serial="",
             remarks="",
         )
 
@@ -310,8 +395,6 @@ class ExportInventorySearchTests(TestCase):
             component_name="Processor",
             original_model="Intel i5",
             original_serial="PROC-123",
-            replacement_model="",
-            replacement_serial="",
             remarks="",
         )
         EquipmentComponent.objects.create(
@@ -319,8 +402,6 @@ class ExportInventorySearchTests(TestCase):
             component_name="Monitor",
             original_model="Dell 24",
             original_serial="MON-001",
-            replacement_model="",
-            replacement_serial="",
             remarks="",
         )
 
@@ -438,8 +519,6 @@ class InventoryPrintViewTests(TestCase):
             component_name="Processor",
             original_model="Intel i5",
             original_serial="PROC-123",
-            replacement_model="",
-            replacement_serial="",
             remarks="",
         )
 
@@ -480,8 +559,6 @@ class ReportsComponentPaginationTests(TestCase):
             component_name="Processor",
             original_model="Model",
             original_serial="S-000",
-            replacement_model="",
-            replacement_serial="",
             remarks="",
         )
 
