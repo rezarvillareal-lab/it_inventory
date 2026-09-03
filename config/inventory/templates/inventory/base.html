@@ -165,3 +165,25 @@ Login
 
 </body>
 </html>
+
+<script>
+    (function(){
+        var timeoutSec = {{ AUTO_LOGOUT_DELAY|default:180 }};
+        var timeoutMs = timeoutSec * 1000;
+        var redirectTo = "{{ LOGOUT_REDIRECT_URL|default:'/login/' }}";
+        var lastActivity = Date.now();
+
+        function resetActivity(){ lastActivity = Date.now(); }
+        ['click','mousemove','keydown','scroll','touchstart'].forEach(function(ev){
+            window.addEventListener(ev, resetActivity, {passive: true});
+        });
+
+        setInterval(function(){
+            if (Date.now() - lastActivity > timeoutMs) {
+                // Force redirect to logout/login page
+                window.location.href = redirectTo;
+            }
+        }, 1000);
+    })();
+</script>
+ 

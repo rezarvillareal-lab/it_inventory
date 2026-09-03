@@ -16,13 +16,23 @@
 
     {{ formset.management_form }}
 
-    <table class="table table-bordered text-center" style="table-layout: fixed; width: 100%;">
+    <style>
+        /* Make inputs/selects/textareas fill their table cells */
+        .table-fixed input,
+        .table-fixed textarea,
+        .table-fixed select {
+            width: 100%;
+            box-sizing: border-box;
+        }
+    </style>
+
+    <table class="table table-bordered table-fixed" style="table-layout: fixed; width: 100%;">
         <thead class="table-dark">
             <tr>
-                <th style="width: 18%;">I.T. EQUIPMENT</th>
-                <th style="width: 36%;">Model/Type</th>
-                <th style="width: 18%;">Serial No.</th>
-                <th style="width: 36%;">REMARKS</th>
+                <th style="width: 20%;">I.T. EQUIPMENT</th>
+                <th style="width: 40%;">Model/Type</th>
+                <th style="width: 15%;">Serial No.</th>
+                <th style="width: 25%;">REMARKS</th>
             </tr>
         </thead>
         <tbody>
